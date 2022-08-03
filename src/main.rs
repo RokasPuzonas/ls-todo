@@ -5,6 +5,8 @@ use regex::Regex;
 
 // TODO: Line number location breaks when multiple remainders exist with same content
 
+// TODO: Add language support for tsx, jsx, lua
+
 #[derive(Debug)]
 struct Reminder {
 	file: PathBuf,
@@ -13,13 +15,22 @@ struct Reminder {
 	contents: String
 }
 
+static ALLOWED_VERBS: [&str; 3] = ["TODO", "FIXME", "BUG"];
+
+fn get_row_and_column(contents: &str, substr: &str) -> (u32, u32) {
+	let occurence = contents.find(substr).unwrap();
+	let row = (contents.chars().take(occurence).filter(|c| *c == '\n').count()+1) as u32;
+	let col = (occurence - contents[..occurence].rfind('\n').unwrap_or(0)) as u32;
+
+	(row, col)
+}
 
 fn list_reminders<P>(path: P) -> Vec<Reminder>
 where
 	P: AsRef<Path>
 {
 	let mut reminders = vec![];
-	let reminder_pattern = Regex::new(r"^[A-Z]+:").unwrap();
+	let reminder_pattern: Regex = Regex::new(r"^[A-Z]+.*:").unwrap();
 
 	for result in Walk::new(path) {
 		if result.is_err() { continue; }
@@ -36,18 +47,18 @@ where
 		let parser = CommentParser::new(&file_contents, rules);
 		for comment in parser {
 			let text = comment.text().trim_start();
-			if reminder_pattern.is_match(text) {
-				let occurence = file_contents.find(text).unwrap();
-				let row = (file_contents.chars().take(occurence).filter(|c| *c == '\n').count()+1) as u32;
-				let col = (occurence - file_contents[..occurence].rfind('\n').unwrap_or(0)) as u32;
+			if !reminder_pattern.is_match(text) { continue; }
 
-				reminders.push(Reminder {
-					file: path.to_path_buf(),
-					row,
-					col,
-					contents: text.to_string()
-				})
-			}
+			let is_allowed = ALLOWED_VERBS.into_iter().any(|v| text.starts_with(v));
+			if !is_allowed { continue; }
+
+			let (row, col) = get_row_and_column(&file_contents, text);
+			reminders.push(Reminder {
+				file: path.to_path_buf(),
+				row,
+				col,
+				contents: text.lines().next().unwrap().into()
+			})
 		}
 	}
 
