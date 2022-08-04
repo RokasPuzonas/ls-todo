@@ -111,7 +111,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ls-todo"
+name = "ls-todos"
 version = "1.0.0"
 dependencies = [
  "comment-parser",

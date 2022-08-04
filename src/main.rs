@@ -1,9 +1,7 @@
 use std::{env, path::Path, fs, collections::HashSet};
-use comment_parser::CommentParser;
+use comment_parser::{CommentParser, SyntaxRule};
 use ignore::Walk;
 use regex::Regex;
-
-// TODO: Add language support for tsx, jsx, lua
 
 #[derive(Debug)]
 struct Reminder {
@@ -14,6 +12,19 @@ struct Reminder {
 
 static ALLOWED_VERBS: [&str; 3] = ["TODO", "FIXME", "BUG"];
 
+const JS: [SyntaxRule; 3] = [
+    SyntaxRule::LineComment(b"//"),
+    SyntaxRule::BlockComment(b"/*", b"*/"),
+    SyntaxRule::String(b"\""),
+];
+
+const LUA: [SyntaxRule; 4] = [
+    SyntaxRule::LineComment(b"--"),
+    SyntaxRule::BlockComment(b"--[[", b"]]--"),
+    SyntaxRule::String(b"\""),
+    SyntaxRule::String(b"'")
+];
+
 fn get_row_and_column(contents: &str, substr: &str, from: usize) -> (u32, u32) {
 	let occurence = contents[from..].find(substr).unwrap() + from;
 	let row = (contents.chars().take(occurence).filter(|c| *c == '\n').count()+1) as u32;
@@ -22,13 +33,22 @@ fn get_row_and_column(contents: &str, substr: &str, from: usize) -> (u32, u32) {
 	(row, col)
 }
 
-fn list_reminders<P: AsRef<Path> + ?Sized>(path: &P) -> Option<Vec<Reminder>>
+fn list_reminders(path: &Path) -> Option<Vec<Reminder>>
 {
 	let mut reminders = vec![];
 	let reminder_pattern: Regex = Regex::new(r"^[A-Z]+.*:").unwrap();
 
-	let rules = comment_parser::get_syntax_from_path(path);
-	if rules.is_err() { return None; }
+	let mut rules = comment_parser::get_syntax_from_path(path);
+	if rules.is_err() {
+		let ext = path.extension()?;
+		if ext == "jsx" || ext == "tsx" {
+			rules = Ok(&JS)
+		} else if ext == "lua" {
+			rules = Ok(&LUA)
+		} else {
+			return None;
+		}
+	}
 
 	let rules = rules.unwrap();
 	let file_contents = fs::read_to_string(path).unwrap();
