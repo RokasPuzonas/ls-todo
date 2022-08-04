@@ -3,8 +3,6 @@ use comment_parser::CommentParser;
 use ignore::Walk;
 use regex::Regex;
 
-// TODO: Line number location breaks when multiple remainders exist with same content
-
 // TODO: Add language support for tsx, jsx, lua
 
 #[derive(Debug)]
@@ -17,17 +15,15 @@ struct Reminder {
 
 static ALLOWED_VERBS: [&str; 3] = ["TODO", "FIXME", "BUG"];
 
-fn get_row_and_column(contents: &str, substr: &str) -> (u32, u32) {
-	let occurence = contents.find(substr).unwrap();
+fn get_row_and_column(contents: &str, substr: &str, from: usize) -> (u32, u32) {
+	let occurence = contents[from..].find(substr).unwrap() + from;
 	let row = (contents.chars().take(occurence).filter(|c| *c == '\n').count()+1) as u32;
 	let col = (occurence - contents[..occurence].rfind('\n').unwrap_or(0)) as u32;
 
 	(row, col)
 }
 
-fn list_reminders<P>(path: P) -> Vec<Reminder>
-where
-	P: AsRef<Path>
+fn list_reminders<P: AsRef<Path>>(path: P) -> Vec<Reminder>
 {
 	let mut reminders = vec![];
 	let reminder_pattern: Regex = Regex::new(r"^[A-Z]+.*:").unwrap();
@@ -45,6 +41,7 @@ where
 		let rules = rules.unwrap();
 		let file_contents = fs::read_to_string(path).unwrap();
 		let parser = CommentParser::new(&file_contents, rules);
+		let mut search_from = 0;
 		for comment in parser {
 			let text = comment.text().trim_start();
 			for line in text.lines() {
@@ -53,13 +50,15 @@ where
 				let is_allowed = ALLOWED_VERBS.into_iter().any(|v| line.starts_with(v));
 				if !is_allowed { continue; }
 
-				let (row, col) = get_row_and_column(&file_contents, line);
+				let (row, col) = get_row_and_column(&file_contents, line, search_from);
 				reminders.push(Reminder {
 					file: path.to_path_buf(),
 					row,
 					col,
 					contents: line.into()
-				})
+				});
+
+				search_from += file_contents[search_from..].find(line).unwrap()+1;
 			}
 		}
 	}
