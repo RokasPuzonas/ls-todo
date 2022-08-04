@@ -47,18 +47,20 @@ where
 		let parser = CommentParser::new(&file_contents, rules);
 		for comment in parser {
 			let text = comment.text().trim_start();
-			if !reminder_pattern.is_match(text) { continue; }
+			for line in text.lines() {
+				if !reminder_pattern.is_match(line) { continue; }
 
-			let is_allowed = ALLOWED_VERBS.into_iter().any(|v| text.starts_with(v));
-			if !is_allowed { continue; }
+				let is_allowed = ALLOWED_VERBS.into_iter().any(|v| line.starts_with(v));
+				if !is_allowed { continue; }
 
-			let (row, col) = get_row_and_column(&file_contents, text);
-			reminders.push(Reminder {
-				file: path.to_path_buf(),
-				row,
-				col,
-				contents: text.lines().next().unwrap().into()
-			})
+				let (row, col) = get_row_and_column(&file_contents, line);
+				reminders.push(Reminder {
+					file: path.to_path_buf(),
+					row,
+					col,
+					contents: line.into()
+				})
+			}
 		}
 	}
 
