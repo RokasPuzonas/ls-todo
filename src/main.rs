@@ -3,6 +3,8 @@ use comment_parser::{CommentParser, SyntaxRule};
 use ignore::Walk;
 use regex::Regex;
 
+// TODO: add --ignore and --include support
+
 #[derive(Debug)]
 struct Reminder {
 	row: u32,
@@ -51,7 +53,7 @@ fn list_reminders(path: &Path) -> Option<Vec<Reminder>>
 	}
 
 	let rules = rules.unwrap();
-	let file_contents = fs::read_to_string(path).unwrap();
+	let file_contents = fs::read_to_string(path).ok()?;
 	let parser = CommentParser::new(&file_contents, rules);
 	let mut search_from = 0;
 	for comment in parser {
